@@ -92,7 +92,7 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
         run: terraform plan -out "dev.tfplan" -var-file="dev.tfvars"
 
       - name: Generate Human Readable Plan
-        run: terraform show destroy.tfplan > plan.txt
+        run: terraform show dev.tfplan > plan.txt
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
