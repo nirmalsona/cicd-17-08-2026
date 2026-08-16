@@ -1,4 +1,4 @@
-dev_rgs = {
+rgs = {
 
 
   rg1 = {
