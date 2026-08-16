@@ -3,7 +3,7 @@ name: Terraform_CI_CD### workflow ka name hai
 on: ######trigger point pipeline kab run hogi
   push: ####jab main branch me code push karenge 
     branches:
-      #branches-ignore: - main
+      
       - feature/new-rg
 
 
