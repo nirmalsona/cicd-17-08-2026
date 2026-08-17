@@ -1,45 +1,28 @@
-name: Terraform_CI_CD### workflow ka name hai
+name: Terraform_CI_CD
 
-on: ######trigger point pipeline kab run hogi
-  push: ####jab main branch me code push karenge 
+on:
+  push:
     branches:
       - main
       - 'feature/**'
 
+  pull_request:
+    branches:
+      - main
 
-jobs: ###########ye wahi sare tasks  ka combinations hai 
 
-  terraform_validation:  #####1st job
+jobs:
+
+  # ============================================================
+  # 1. TERRAFORM VALIDATION
+  # ============================================================
+
+  terraform_validation:
     name: Terraform Validation
-    runs-on: ubuntu-latest  ####runner pipeline kaha run hogi
-
-    steps:
-      - name: ###########code ko runner pe le ke jana hai
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Format Check
-        run: terraform fmt
-
-      - name: Terraform Validate
-        run: terraform validate
-
-  terraform_security_scan:  #####2nd job
-    name: Terraform Security Scan
-    needs: terraform_validation
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -54,6 +37,30 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
       - name: Terraform Init
         run: terraform init
 
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
+
+  # ============================================================
+  # 2. SECURITY SCAN
+  # ============================================================
+
+  terraform_security_scan:
+    name: Terraform Security Scan
+    needs: terraform_validation
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
 
@@ -67,7 +74,13 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
         run: pip3 install checkov
 
       - name: Run Checkov
-        run: checkov -d . --soft-fail
+        run: checkov -d .
+
+
+  # ============================================================
+  # 3. TERRAFORM PLAN
+  # Runs on feature push, PR and main
+  # ============================================================
 
   terraform_plan_preview:
     name: Terraform Plan
@@ -75,6 +88,7 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -90,7 +104,7 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
         run: terraform init
 
       - name: Terraform Plan
-        run: terraform plan -out "dev.tfplan" -var-file="dev.tfvars"
+        run: terraform plan -out=dev.tfplan -var-file=dev.tfvars
 
       - name: Generate Human Readable Plan
         run: terraform show dev.tfplan > plan.txt
@@ -103,13 +117,24 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
             dev.tfplan
             plan.txt
 
+
+  # ============================================================
+  # 4. TERRAFORM APPLY
+  # ONLY AFTER MERGE TO MAIN
+  # ============================================================
+
   terraform_apply:
     name: Terraform Apply
     needs: terraform_plan_preview
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     runs-on: ubuntu-latest
+
     environment: dev
 
     steps:
+
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -124,11 +149,8 @@ jobs: ###########ye wahi sare tasks  ka combinations hai
       - name: Terraform Init
         run: terraform init
 
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-plan
-          path: |
+      - name: Terraform Plan
+        run: terraform plan -out=dev.tfplan -var-file=dev.tfvars
 
-      - name: Terraform apply
-        run: terraform apply dev.tfplan
+      - name: Terraform Apply
+        run: terraform apply -auto-approve dev.tfplan
